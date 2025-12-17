@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: grader
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:R14751485r@db:3306/mydb
+      - SYNC_ENGINE=mysql+pymysql://root:R14751485r@db:3306/mydb
+      - JWT_SECRET_KEY=n5n7k2V3w8QzJ1uX9pA4sT7eL0rB6yC5dF2hG8jK3mP0sW4vX
+#      - APYHUB_API_KEY=APY0aodvvGhuLP1pH332igfKU91tkkiSVHavEY500XqGrWVYe8bu5L9D2ZF8hJgl
+      - MEDIA_DIR=/app/media
+      # - SMS_API_KEY=UvyC6W8LC53LHiFESrHgxj6cb8rkNN9GgeU7B0HWZGSBunV3
+#      - SMS_API_KEY=hlMLtxPPqqwuqbprCpGKeEdGvNmudg6w5EHWZNyB3gTzaQU6
+#      - Chabokan_API_KEY=d72a864c95340f46b8625bf43a7ab87e480e17a5
+#      - Consultant_Phone_Number=09125034014
+#      - Main_Wallet_Id=97728
+    volumes:
+      - media_volume:/app/media
+    networks:
+      - backend_net
+
+volumes:
+  media_volume:
+    external: true
+
+networks:
+  backend_net:
+    external: true

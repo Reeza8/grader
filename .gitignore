@@ -1,0 +1,60 @@
+# Python bytecode files
+__pycache__/
+
+
+# Virtual environments
+venv/
+.env
+*.env
+
+# Database and logs
+*.sqlite
+*.sqlite3
+*.db
+*.log
+*.sql
+
+# Compiled source files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.keras
+
+# Archive files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Images (optional)
+*.jpg
+*.jpeg
+*.png
+
+# Alembic cache
+
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# JetBrains IDEs (PyCharm, IntelliJ)
+.idea/
+
+# XML or config files (optional)
+*.xml
+
+alembic/versions/
+media/
