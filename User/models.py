@@ -2,7 +2,13 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, E
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from db import Base
+import enum
 
+class UserRole(enum.Enum):
+    ADMIN = "admin"
+    TEACHER = "teacher"
+    STUDENT = "student"
+    MANAGER = "manager"
 
 
 class User(Base):
@@ -14,7 +20,7 @@ class User(Base):
     phone_number = Column(String(13), unique=True, nullable=True)
     password_hash = Column(String(256), nullable=True)
     createdAt = Column(DateTime, server_default=func.now())
-
+    role = Column(Enum(UserRole, name="role"),nullable=False, server_default=UserRole.TEACHER.value )
 
 class VerifyCode(Base):
     __tablename__ = 'verify_code'

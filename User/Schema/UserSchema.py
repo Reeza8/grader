@@ -1,47 +1,33 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 from typing import Optional
 import re
-
+from User.models import UserRole
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional
+import re
+from User.models import UserRole
 
 
 class LoginRequest(BaseModel):
-    index: str = Field(..., alias="ایمیل یا شماره تلفن", description="index.")
-
-    class Config:
-        populate_by_name = True
+    index: str
+    role: UserRole
 
 
 class EditStudent(BaseModel):
-    id: int = Field(..., alias="شناسه دانش‌آموز", description="id.")
-    name: str = Field(..., alias="نام دانش‌آموز", description="name.")
-
-    class Config:
-        populate_by_name = True
+    id: int
+    name: str
 
 
 class VerifyCodeRequest(BaseModel):
-    index: str = Field(..., alias="ایمیل یا شماره تلفن", description="index.")
-    code: str = Field(..., alias="کد تایید", description="code.")
-
-    class Config:
-        populate_by_name = True
+    index: str
+    code: str
 
 
 class EditPasswordRequest(BaseModel):
-    password: str = Field(..., alias="رمز عبور جدید", description="password.")
-    repeatPassword: str = Field(..., alias="تکرار رمز عبور", description="repeatPassword.")
-    previousPassword: Optional[str] = Field(None, alias="رمز عبور پیشین", description="previousPassword.")
-
-    class Config:
-        populate_by_name = True
-
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        password_regex = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$')
-        if not password_regex.match(v):
-            raise ValueError("رمز عبور باید حداقل ۸ کاراکتر و شامل حروف و اعداد باشد.")
-        return v
+    password: str
+    repeatPassword: str
+    previousPassword: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_passwords_match(self):
@@ -51,14 +37,7 @@ class EditPasswordRequest(BaseModel):
 
 
 class EditNameRequest(BaseModel):
-    name: str = Field(
-        ...,
-        alias="نام کاربر",
-        description="name."
-    )
-
-    class Config:
-        populate_by_name = True
+    name: str
 
     @field_validator("name")
     @classmethod
@@ -72,19 +51,21 @@ class EditNameRequest(BaseModel):
 
 
 class LoginPasswordRequest(BaseModel):
-    index: str = Field(..., alias="ایمیل یا شماره تلفن", description="index.")
-    password: str = Field(..., alias="رمز عبور", description="password.")
+    index: str
+    password: str
 
     class Config:
         populate_by_name = True
 
+
+
+
+class ResetPasswordResponse(BaseModel):
+    name: str
+    user_id: int
 
 class ResetPasswordRequest(BaseModel):
-    index: str = Field(..., alias="ایمیل یا شماره تلفن", description="index.")
-
-    class Config:
-        populate_by_name = True
-
+    index: str
 
 class LoginResponse(BaseModel):
     index: str
@@ -93,7 +74,7 @@ class LoginResponse(BaseModel):
         from_attributes = True
 
 
-class verifyCodeResponse(BaseModel):
+class VerifyCodeResponse(BaseModel):
     token: str
     index: str
 
@@ -119,17 +100,15 @@ class ResetPasswordResponse(BaseModel):
 
 
 class AddUserRequest(BaseModel):
-    index: str = Field(..., alias="ایمیل یا شماره تلفن", description="index.")
-    password: str = Field(..., alias="رمز عبور", description="password.")
-    name: Optional[str] = Field(None, alias="نام", description="name.")
+    index: str
+    password: str
+    name: Optional[str] = None
+    role: Optional[UserRole] = None
 
-    class Config:
-        populate_by_name = True
-
-    @field_validator('password')
+    @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        password_regex = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$')
+        password_regex = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$")
         if not password_regex.match(v):
             raise ValueError("رمز عبور باید حداقل ۸ کاراکتر و شامل حروف و اعداد باشد.")
         return v
@@ -137,6 +116,8 @@ class AddUserRequest(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, value: str):
+        if value is None:
+            return value
         value = value.strip()
         if not value:
             raise ValueError("نام نمی‌تواند خالی باشد.")
@@ -146,14 +127,13 @@ class AddUserRequest(BaseModel):
 
 
 class AddUserResponse(BaseModel):
-    index :str
+    index: str
     id: int
     name: str | None
-    password: str
+    role: UserRole
 
-    class Config:
-        populate_by_name = True
 
 class UserResponse(BaseModel):
     id: int
     name: str | None
+

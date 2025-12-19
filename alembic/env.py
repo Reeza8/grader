@@ -6,8 +6,7 @@ from db import Base, sync_engine
 
 # ---- Import all models so Alembic can detect them ----
 import User.models
-import Blog.models
-import Question.models
+
 
 # Alembic Config object
 config = context.config

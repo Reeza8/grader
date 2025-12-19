@@ -15,16 +15,10 @@ LOGIN_EXEMPT_URLS = [
     '/user/userApi/verifyCodeLogin/',
     '/user/userApi/loginPassword/',
     '/user/userApi/addUser/',
-    '/blog/blogApi/getBlogs/',
-    '/blog/blogApi/getBlog/',
-    '/blog/blogApi/media/',
     '/docs/',
     '/docs',
     '/openapi.json',
-    '/blog/categoryApi/getCategories/',
-    '/question/questionApi/getQuestions/',
-    '/question/questionApi/addConsultantRequest/',
-    '/question/questionApi/addContact/',
+
 ]
 
 class AuthMiddleware(BaseHTTPMiddleware):

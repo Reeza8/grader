@@ -10,7 +10,7 @@ from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 import http.client
 import json
 from utils.config import settings
-
+import secrets
 
 password_regex = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$')
 PHONE_REGEX = re.compile(r"^\+98\d{10}$")
@@ -94,33 +94,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         )
     )
 
-def create_excerpt_mode(text: str, mode: str = "long") -> tuple[str, bool]:
-    conn = http.client.HTTPSConnection("api.apyhub.com")
+def generate_random_password(length: int = 12) -> str:
+    if length < 8:
+        raise ValueError("Password length must be at least 8 characters")
 
-    payload_dict = {
-        "text": text,
-        "output_language": "fa",
-        "summary_length": mode  # short یا long
-    }
+    alphabet = (
+        string.ascii_lowercase +
+        string.ascii_uppercase +
+        string.digits
+    )
 
-    payload = json.dumps(payload_dict)
-
-    headers = {
-        'apy-token': settings.apyhub_api_key,
-        'Content-Type': "application/json"
-    }
-
-    try:
-        conn.request("POST", "/ai/summarize-text", payload, headers)
-        res = conn.getresponse()
-        data = res.read()
-        result = json.loads(data)
-        print(res.status, result)
-        if res.status == 200 and "data" in result:
-            return result["data"]["summary"], True
-
-    except Exception:
-        print(Exception)
-
-    fallback_excerpt = text[:160]
-    return fallback_excerpt, False
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
