@@ -1,67 +1,88 @@
-import httpx
-from utils.config import settings
+# import httpx
 import jdatetime
 from fastapi import HTTPException
 
 
-def to_jalali_str(dt) -> str:
-    """
-    Convert a Gregorian datetime to a short Jalali datetime string.
-    Example output: '06/15 18:58'
-    """
+
+
+PERSIAN_MONTHS = [
+    "فروردین",
+    "اردیبهشت",
+    "خرداد",
+    "تیر",
+    "مرداد",
+    "شهریور",
+    "مهر",
+    "آبان",
+    "آذر",
+    "دی",
+    "بهمن",
+    "اسفند",
+]
+
+def to_jalali_str(dt, include_time: bool = False) -> str:
+    # Convert Gregorian datetime to Jalali datetime
     jdate = jdatetime.datetime.fromgregorian(datetime=dt)
-    return jdate.strftime("%m/%d %H:%M")
+
+    # Build date part in Persian format
+    date_part = f"{jdate.day} {PERSIAN_MONTHS[jdate.month - 1]} {jdate.year}"
+
+    # Optionally append time
+    if include_time:
+        return f"{date_part} {jdate.strftime('%H:%M')}"
+
+    return date_part
 
 
-class SMSService:
-    """
-    Service for sending SMS messages and checking SMS credit via SMS.ir API.
-    """
-
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = "https://api.sms.ir/v1"
-        self.headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key,
-        }
-
-    async def send_sms(self, mobile: str, template_id: str, parameters: list[dict]):
-        url = f"{self.base_url}/send/verify"
-        payload = {
-            "mobile": mobile,
-            "templateId": template_id,
-            "parameters": parameters,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(40.0)) as client:
-                response = await client.post(url, headers=self.headers, json=payload)
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=504, detail=f"خطا در اتصال به سرور پیامکی: {str(e)}")
-
-        if response.status_code == 200:
-            return response.json()
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=f" پیام ارسال نشد: : {response.text}"
-        )
-
-    async def get_credit(self):
-        url = f"{self.base_url}/credit"
-
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(40.0)) as client:
-                response = await client.get(url, headers=self.headers)
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=504, detail=f"خطا در دریافت اعتبار پیامکی: {str(e)}")
-
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("data", 0) if isinstance(data, dict) else -1
-        raise HTTPException(
-            status_code=500,
-            detail="خطا در دریافت اعتبار پنل پیامک"
-        )
+# class SMSService:
+#     """
+#     Service for sending SMS messages and checking SMS credit via SMS.ir API.
+#     """
+#
+#     def __init__(self, api_key: str):
+#         self.api_key = api_key
+#         self.base_url = "https://api.sms.ir/v1"
+#         self.headers = {
+#             "Content-Type": "application/json",
+#             "x-api-key": self.api_key,
+#         }
+#
+#     async def send_sms(self, mobile: str, template_id: str, parameters: list[dict]):
+#         url = f"{self.base_url}/send/verify"
+#         payload = {
+#             "mobile": mobile,
+#             "templateId": template_id,
+#             "parameters": parameters,
+#         }
+#         try:
+#             async with httpx.AsyncClient(timeout=httpx.Timeout(40.0)) as client:
+#                 response = await client.post(url, headers=self.headers, json=payload)
+#         except httpx.RequestError as e:
+#             raise HTTPException(status_code=504, detail=f"خطا در اتصال به سرور پیامکی: {str(e)}")
+#
+#         if response.status_code == 200:
+#             return response.json()
+#         raise HTTPException(
+#             status_code=response.status_code,
+#             detail=f" پیام ارسال نشد: : {response.text}"
+#         )
+#
+#     async def get_credit(self):
+#         url = f"{self.base_url}/credit"
+#
+#         try:
+#             async with httpx.AsyncClient(timeout=httpx.Timeout(40.0)) as client:
+#                 response = await client.get(url, headers=self.headers)
+#         except httpx.RequestError as e:
+#             raise HTTPException(status_code=504, detail=f"خطا در دریافت اعتبار پیامکی: {str(e)}")
+#
+#         if response.status_code == 200:
+#             data = response.json()
+#             return data.get("data", 0) if isinstance(data, dict) else -1
+#         raise HTTPException(
+#             status_code=500,
+#             detail="خطا در دریافت اعتبار پنل پیامک"
+#         )
 
 
 # class ChabokanService:

@@ -16,11 +16,12 @@ from User.Schema.UserSchema import (
     EditPasswordRequest, EditPasswordResponse,
     EditNameRequest, EditNameResponse,
     LoginPasswordRequest, LoginPasswordResponse,
-    AddUserRequest, AddUserResponse, ResetPasswordRequest,ResetPasswordResponse
+    AddUserRequest, AddUserResponse, ResetPasswordRequest,ResetPasswordResponse,
+    GetMyProfileResponse
 )
 from utils.jwt import create_access_token
 from utils.utils import my_response, generate_random_password
-
+from utils.common import to_jalali_str
 
 router = APIRouter(prefix='/userApi', tags=["Auth"])
 
@@ -413,7 +414,6 @@ async def reset_password(
 ):
     currentUser = request.scope["user"]
     userId = currentUser["user_id"]
-
     useCase = ResetPasswordUseCase(
         session=session,
         passwordGenerator=generate_random_password
@@ -484,6 +484,34 @@ async def add_user(
             name=result["name"],
             index=result["index"],
             role=result["role"],
+        )
+    )
+
+@router.get("/getMyProfile/")
+async def get_my_profile(
+    request: Request,
+    session: AsyncSession = Depends(get_async_session)
+):
+    currentUser = request.scope["user"]
+    userId = currentUser["user_id"]
+    result = await session.execute(
+        select(User).where(User.id == userId)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="کاربر یافت نشد")
+
+    return my_response(
+        200,
+        "پروفایل با موفقیت برگردانده شد",
+        GetMyProfileResponse(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            phone_number=user.phone_number,
+            createdAt=to_jalali_str(user.createdAt),
+            role=user.role
         )
     )
 

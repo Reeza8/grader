@@ -1,8 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic import BaseModel, field_validator
-from typing import Optional
-import re
-from User.models import UserRole
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 import re
@@ -136,4 +133,12 @@ class AddUserResponse(BaseModel):
 class UserResponse(BaseModel):
     id: int
     name: str | None
+
+class GetMyProfileResponse(BaseModel):
+    id: int
+    name: str | None
+    email: str| None
+    phone_number: str| None
+    createdAt: str
+    role: UserRole
 
