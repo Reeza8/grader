@@ -9,6 +9,7 @@ from User.Application.login_password import LoginPasswordUseCase
 from User.Application.add_user import AddUserUseCase
 from User.Application.reset_password import ResetPasswordUseCase
 from User.Application.edit_password import EditPasswordUseCase
+from User.Application.refresh_access_token import RefreshAccessTokenUseCase
 
 from db import get_async_session
 from User.models import User
@@ -19,9 +20,11 @@ from User.Schema.UserSchema import (
     AddUserRequest, AddUserResponse, ResetPasswordRequest,ResetPasswordResponse,
     GetMyProfileResponse
 )
-from utils.jwt import create_access_token
-from utils.utils import my_response, generate_random_password
-from utils.common import to_jalali_str
+
+from utils.jwt import create_access_token, create_refresh_token
+from utils.utils import my_response, generate_random_password, get_current_user
+from utils.utils import to_jalali_str
+
 
 router = APIRouter(prefix='/userApi', tags=["Auth"])
 
@@ -45,13 +48,13 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 #     latest_code_query = (
 #         select(VerifyCode)
 #         .where(VerifyCode.index == index)
-#         .order_by(VerifyCode.createdAt.desc())
+#         .order_by(VerifyCode.created_at.desc())
 #         .limit(1)
 #     )
 #     result = await session.execute(latest_code_query)
 #     recent_code = result.scalar_one_or_none()
 #
-#     if recent_code and recent_code.createdAt > datetime.utcnow() - timedelta(minutes=2):
+#     if recent_code and recent_code.created_at > datetime.utcnow() - timedelta(minutes=2):
 #         raise HTTPException(status_code=429, detail="لطفاً تا ۲ دقیقه دیگر دوباره تلاش کنید")
 #
 #     user_query = select(User).where(
@@ -150,7 +153,7 @@ async def login(
 #     code_query = select(VerifyCode).where(
 #         VerifyCode.user_id == user.id
 #     ).order_by(
-#         VerifyCode.createdAt.desc()
+#         VerifyCode.created_at.desc()
 #     ).limit(1)
 #     result = await session.execute(code_query)
 #     verify_code = result.scalar_one_or_none()
@@ -161,7 +164,7 @@ async def login(
 #     if verify_code.code != input_code:
 #         raise HTTPException(status_code=400, detail="کد تأیید اشتباه است")
 #
-#     if verify_code.isUsed or verify_code.createdAt < datetime.utcnow() - timedelta(minutes=2):
+#     if verify_code.isUsed or verify_code.created_at < datetime.utcnow() - timedelta(minutes=2):
 #         raise HTTPException(status_code=400, detail="کد تأیید منقضی شده یا قبلاً استفاده شده است")
 #
 #     verify_code.isUsed = True
@@ -289,7 +292,7 @@ async def edit_password(
 
 
 # no need for usecase, simple CRUD
-@router.put("/editUsername/")
+@router.put("/editName/")
 async def edit_username(
     request: Request,
     request_data: EditNameRequest,
@@ -319,18 +322,17 @@ async def edit_username(
     )
 
 
-
-
-
 @router.post("/loginPassword/")
 async def login_password(
     request_data: LoginPasswordRequest,
-    session: AsyncSession = Depends(get_async_session)
+    session: AsyncSession = Depends(get_async_session),
 ):
     useCase = LoginPasswordUseCase(
         session=session,
-        pwdContext=pwd_context,
-        tokenService=create_access_token
+        tokenService={
+            "access": create_access_token,
+            "refresh": create_refresh_token,
+        }
     )
 
     try:
@@ -342,21 +344,32 @@ async def login_password(
         errorMap = {
             "INVALID_INDEX": (400, "فرمت ورودی نامعتبر است"),
             "USER_NOT_FOUND": (404, "کاربر یافت نشد"),
-            "PASSWORD_NOT_SET": (400, "رمز عبور برای این کاربر تنظیم نشده است"),
+            "PASSWORD_NOT_SET": (400, "رمز عبور تنظیم نشده است"),
             "INVALID_PASSWORD": (400, "رمز عبور اشتباه است"),
+            "NO_ACTIVE_ROLE": (403, "کاربر نقش فعالی ندارد"),
         }
-
         status, message = errorMap[str(e)]
         raise HTTPException(status_code=status, detail=message)
 
-    return my_response(
+    response = my_response(
         200,
-        "ورود توسط رمز عبور با موفقیت انجام شد",
-        LoginPasswordResponse(
-            token=result["token"],
-            index=result["index"]
-        )
+        "ورود موفق",
+        {
+            "access_token": result["access_token"],
+            "index": result["index"],
+        }
     )
+
+    response.set_cookie(
+        key="refresh_token",
+        value=result["refresh_token"],
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+
+    return response
+
 
 
 # @router.post("/resetPassword/", response_model=ResetPasswordResponse)
@@ -452,28 +465,27 @@ async def reset_password(
 
 @router.post("/addUser/")
 async def add_user(
+    request: Request,
     data: AddUserRequest,
-    session: AsyncSession = Depends(get_async_session)
+    session: AsyncSession = Depends(get_async_session),
 ):
-    useCase = AddUserUseCase(
-        session=session,
-        pwdContext=pwd_context
-    )
+    useCase = AddUserUseCase(session=session)
+    currentUser = request.scope.get("current_user")
 
     try:
         result = await useCase.execute(
+            currentUser=currentUser,
             index=data.index,
             password=data.password,
-            role=data.role
         )
     except ValueError as e:
         errorMap = {
             "INVALID_INDEX": (400, "فرمت ورودی نامعتبر است"),
             "USER_ALREADY_EXISTS": (400, "کاربر دیگری با اطلاعات ورودی وجود دارد"),
-            "INVALID_ROLE": (400, "نقش کاربر نامعتبر است"),
+            "ACCESS_DENIED": (403, "دسترسی ندارید"),
         }
 
-        status, message = errorMap[str(e)]
+        status, message = errorMap.get(str(e), (400, "خطای نامشخص"))
         raise HTTPException(status_code=status, detail=message)
 
     return my_response(
@@ -481,10 +493,8 @@ async def add_user(
         message="کاربر با موفقیت ایجاد شد",
         data=AddUserResponse(
             id=result["id"],
-            name=result["name"],
             index=result["index"],
-            role=result["role"],
-        )
+        ),
     )
 
 @router.get("/getMyProfile/")
@@ -492,15 +502,27 @@ async def get_my_profile(
     request: Request,
     session: AsyncSession = Depends(get_async_session)
 ):
-    currentUser = request.scope["user"]
-    userId = currentUser["user_id"]
+    currentUser = request.scope.get("current_user")
+    if not currentUser:
+        return my_response(
+            401,
+            "کاربر احراز هویت نشده است",
+            None
+        )
+
+    userId = currentUser.userId
+
     result = await session.execute(
         select(User).where(User.id == userId)
     )
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(status_code=404, detail="کاربر یافت نشد")
+        return my_response(
+            404,
+            "کاربر یافت نشد",
+            None
+        )
 
     return my_response(
         200,
@@ -510,8 +532,42 @@ async def get_my_profile(
             name=user.name,
             email=user.email,
             phone_number=user.phone_number,
-            createdAt=to_jalali_str(user.createdAt),
-            role=user.role
+            created_at=to_jalali_str(user.created_at),
+            roles=currentUser.roles
         )
     )
 
+
+@router.post("/refresh/")
+async def refresh_token(
+    request: Request,
+    session: AsyncSession = Depends(get_async_session),
+):
+    refreshToken = request.cookies.get("refresh_token")
+    if not refreshToken:
+        raise HTTPException(status_code=401, detail="REFRESH_TOKEN_MISSING")
+
+    useCase = RefreshAccessTokenUseCase(
+        session=session,
+        accessTokenService=create_access_token
+    )
+
+    try:
+        result = await useCase.execute(refreshToken)
+    except ValueError as e:
+        errorMap = {
+            "REFRESH_TOKEN_EXPIRED": (401, "رفرش توکن منقضی شده"),
+            "INVALID_REFRESH_TOKEN": (401, "رفرش توکن نامعتبر است"),
+            "INVALID_TOKEN_TYPE": (401, "نوع توکن نامعتبر است"),
+            "NO_ACTIVE_ROLE": (403, "کاربر نقش فعالی ندارد"),
+            "USER_NOT_FOUND": (404, "کاربر یافت نشد"),
+            "USER_INACTIVE": (403, "حساب کاربری غیرفعال است"),
+        }
+        status, message = errorMap[str(e)]
+        raise HTTPException(status_code=status, detail=message)
+
+    return my_response(
+        200,
+        "توکن جدید صادر شد",
+        result
+    )

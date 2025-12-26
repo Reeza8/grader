@@ -31,7 +31,7 @@ class VerifyLoginCodeUseCase:
         code_query = (
             select(VerifyCode)
             .where(VerifyCode.user_id == user.id)
-            .order_by(VerifyCode.createdAt.desc())
+            .order_by(VerifyCode.created_at.desc())
             .limit(1)
         )
         result = await self.session.execute(code_query)
@@ -43,7 +43,7 @@ class VerifyLoginCodeUseCase:
         if verify_code.code != input_code:
             raise ValueError("INVALID_CODE")
 
-        if verify_code.isUsed or verify_code.createdAt < datetime.utcnow() - timedelta(minutes=2):
+        if verify_code.isUsed or verify_code.created_at < datetime.utcnow() - timedelta(minutes=2):
             raise ValueError("CODE_EXPIRED")
 
         verify_code.isUsed = True

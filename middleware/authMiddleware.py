@@ -1,100 +1,94 @@
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Request
-from fastapi.responses import JSONResponse
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 import jwt
 from datetime import datetime, timezone
-from utils.utils import my_response as apiResponse
 from dotenv import load_dotenv
 import os
 
+from utils.utils import my_response as apiResponse
+
 load_dotenv(".env")
+
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+JWT_ALGORITHM = "HS256"
 
 LOGIN_EXEMPT_URLS = [
-    '/user/userApi/login/',
-    '/user/userApi/verifyCodeLogin/',
-    '/user/userApi/loginPassword/',
-    '/user/userApi/addUser/',
-    '/docs/',
-    '/docs',
-    '/openapi.json',
-
+    "/user/userApi/login/",
+    "/user/userApi/verifyCodeLogin/",
+    "/user/userApi/loginPassword/",
+    "/user/userApi/addUser/",
+    "/user/userApi/refresh/",
+    "/docs/",
+    "/docs",
+    "/openapi.json",
 ]
+
+
+class CurrentUser:
+    def __init__(self, userId: int, roles: list[str]):
+        self.userId = userId
+        self.roles = roles
+
+    def hasRole(self, role: str) -> bool:
+        return role in self.roles
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if not any(path.startswith(p) for p in LOGIN_EXEMPT_URLS) and path != '/':
-            authentication = await self.check_authentication(request)
-            if not authentication["authenticated"]:
-                return JSONResponse(
-                    status_code=401,
-                    content=apiResponse(
-                        status_code=401,
-                        message="کاربر احراز هویت نشده است، توکن وارد نشده است",
-                        data=None
-                    )
-                )
+        if not any(path.startswith(p) for p in LOGIN_EXEMPT_URLS) and path != "/":
+            authHeader = request.headers.get("authorization")
+            if not authHeader:
+                return self._unauthorized("توکن ارسال نشده است")
+            tokenParts = authHeader.split(" ")
+            if len(tokenParts) != 2 or tokenParts[0].lower() != "bearer":
+                return self._unauthorized("فرمت توکن نامعتبر است")
 
             try:
-                payload = await self.decodeJWTToken(authentication.get("token"))
+                payload = self._decode_jwt(tokenParts[1])
+
+                if payload.get("type") != "access":
+                    return self._unauthorized("نوع توکن نامعتبر است")
+
             except jwt.ExpiredSignatureError:
-                return JSONResponse(
-                    status_code=401,
-                    content=apiResponse(
-                        status_code=401,
-                        message="توکن منقضی شده است",
-                        data=None
-                    )
-                )
+                return self._unauthorized("توکن منقضی شده است")
             except jwt.InvalidTokenError:
-                return JSONResponse(
-                    status_code=401,
-                    content=apiResponse(
-                        status_code=401,
-                        message="توکن معتبر نمی‌باشد",
-                        data=None
-                    )
-                )
+                return self._unauthorized("توکن معتبر نمی‌باشد")
             except Exception:
-                return JSONResponse(
-                    status_code=401,
-                    content=apiResponse(
-                        status_code=401,
-                        message="خطا در پردازش توکن",
-                        data=None
-                    )
-                )
+                return self._unauthorized("خطا در پردازش توکن")
 
-            if not payload.get("user_id"):
-                return JSONResponse(
-                    status_code=401,
-                    content=apiResponse(
-                        status_code=401,
-                        message="توکن معتبر نمی‌باشد",
-                        data=None
-                    )
-                )
+            userId = payload.get("user_id")
+            roles = payload.get("roles")
 
-            request.scope.update({'user': payload})
+            if not userId or not isinstance(roles, list):
+                return self._unauthorized("توکن معتبر نمی‌باشد")
 
-        response = await call_next(request)
-        return response
+            request.scope["current_user"] = CurrentUser(
+                userId=userId,
+                roles=roles,
+            )
 
-    async def decodeJWTToken(self, rawToken: str) -> dict:
-        token = rawToken.replace("Bearer ", "").strip()
-        decoded_token: dict = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
-        if decoded_token.get("exp", 0) < datetime.now(timezone.utc).timestamp():
+        return await call_next(request)
+
+    def _decode_jwt(self, token: str) -> dict:
+        decoded = jwt.decode(
+            token,
+            JWT_SECRET_KEY,
+            algorithms=[JWT_ALGORITHM],
+        )
+
+        exp = decoded.get("exp")
+        if not exp or exp < datetime.now(timezone.utc).timestamp():
             raise jwt.ExpiredSignatureError
-        return decoded_token
 
-    async def check_authentication(self, request: Request):
-        auth_header = request.headers.get("authorization")
-        if not auth_header:
-            return {"authenticated": False, "token": None}
+        return decoded
 
-        token_parts = auth_header.split(" ")
-        if len(token_parts) != 2 or token_parts[0].lower() != "bearer":
-            return {"authenticated": False, "token": None}
-
-        return {"authenticated": True, "token": token_parts[1]}
+    def _unauthorized(self, message: str):
+        response = apiResponse(
+            status_code=401,
+            message=message,
+            data=None,
+        )
+        response.headers["X-RAW-RESPONSE"] = "1"
+        return response

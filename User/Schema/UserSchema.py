@@ -3,12 +3,11 @@ from pydantic import BaseModel, field_validator
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 import re
-from User.models import UserRole
 
 
 class LoginRequest(BaseModel):
     index: str
-    role: UserRole
+    roles: list[str]
 
 
 class EditStudent(BaseModel):
@@ -100,7 +99,6 @@ class AddUserRequest(BaseModel):
     index: str
     password: str
     name: Optional[str] = None
-    role: Optional[UserRole] = None
 
     @field_validator("password")
     @classmethod
@@ -126,8 +124,6 @@ class AddUserRequest(BaseModel):
 class AddUserResponse(BaseModel):
     index: str
     id: int
-    name: str | None
-    role: UserRole
 
 
 class UserResponse(BaseModel):
@@ -139,6 +135,6 @@ class GetMyProfileResponse(BaseModel):
     name: str | None
     email: str| None
     phone_number: str| None
-    createdAt: str
-    role: UserRole
+    created_at: str
+    roles: list[str]
 

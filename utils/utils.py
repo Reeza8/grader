@@ -8,10 +8,20 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 import secrets
+from fastapi import Request, Depends, HTTPException
+from passlib.context import CryptContext
+from starlette.responses import JSONResponse
+import jdatetime
+from utils.common import CurrentUser
+
+
 
 password_regex = re.compile(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$')
 PHONE_REGEX = re.compile(r"^\+98\d{10}$")
 EMAIL_REGEX = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w{2,4}$")
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
 
 def generate_random_password(length=8):
     if length < 8:
@@ -23,15 +33,18 @@ def generate_random_password(length=8):
         if password_regex.match(password):
             return password
 
-def my_response(status_code: int, message: str = "", data: Optional[Any] = None) -> dict:
+def my_response(status_code: int, message: str = "", data: Optional[Any] = None) -> JSONResponse:
     if isinstance(data, BaseModel):
         data = data.dict()
 
-    return {
-        "code": status_code,
-        "message": message,
-        "data": data
-    }
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "code": status_code,
+            "message": message,
+            "data": data
+        }
+    )
 
 def is_valid_email(email: str) -> bool:
     return bool(EMAIL_REGEX.match(email))
@@ -40,14 +53,13 @@ def is_valid_phone(phone: str) -> bool:
     return bool(PHONE_REGEX.match(phone))
 
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(
+    response = my_response(
         status_code=exc.status_code,
-        content=my_response(
-            status_code=exc.status_code,
-            message=exc.detail,
-            data=None
-        )
+        message=exc.detail,
+        data=None,
     )
+    response.headers["X-RAW-RESPONSE"] = "1"
+    return response
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     if "JSON decode error" in str(exc) or "Expecting value" in str(exc):
@@ -102,3 +114,52 @@ def generate_random_password(length: int = 12) -> str:
     )
 
     return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+PERSIAN_MONTHS = [
+    "فروردین",
+    "اردیبهشت",
+    "خرداد",
+    "تیر",
+    "مرداد",
+    "شهریور",
+    "مهر",
+    "آبان",
+    "آذر",
+    "دی",
+    "بهمن",
+    "اسفند",
+]
+
+def to_jalali_str(dt, include_time: bool = False) -> str:
+    # Convert Gregorian datetime to Jalali datetime
+    jdate = jdatetime.datetime.fromgregorian(datetime=dt)
+
+    # Build date part in Persian format
+    date_part = f"{jdate.day} {PERSIAN_MONTHS[jdate.month - 1]} {jdate.year}"
+
+    # Optionally append time
+    if include_time:
+        return f"{date_part} {jdate.strftime('%H:%M')}"
+
+    return date_part
+
+
+
+
+def get_current_user(request: Request) -> CurrentUser:
+    payload = request.scope.get("user")
+
+    if not payload:
+        raise HTTPException(status_code=401, detail="UNAUTHENTICATED")
+
+    userId = payload.get("user_id")
+    roles = payload.get("roles", [])
+
+    if not userId or not isinstance(roles, list):
+        raise HTTPException(status_code=401, detail="INVALID_TOKEN")
+
+    return CurrentUser(
+        userId=userId,
+        roles=roles
+    )

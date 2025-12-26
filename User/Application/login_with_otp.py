@@ -22,13 +22,13 @@ class LoginWithOTPUseCase:
         latest_code_query = (
             select(VerifyCode)
             .where(VerifyCode.index == index)
-            .order_by(VerifyCode.createdAt.desc())
+            .order_by(VerifyCode.created_at.desc())
             .limit(1)
         )
         result = await self.session.execute(latest_code_query)
         recent_code = result.scalar_one_or_none()
 
-        if recent_code and recent_code.createdAt > datetime.utcnow() - timedelta(minutes=2):
+        if recent_code and recent_code.created_at > datetime.utcnow() - timedelta(minutes=2):
             raise ValueError("RATE_LIMIT")
 
         # find user

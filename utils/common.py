@@ -1,37 +1,14 @@
-# import httpx
-import jdatetime
-from fastapi import HTTPException
 
 
 
 
-PERSIAN_MONTHS = [
-    "فروردین",
-    "اردیبهشت",
-    "خرداد",
-    "تیر",
-    "مرداد",
-    "شهریور",
-    "مهر",
-    "آبان",
-    "آذر",
-    "دی",
-    "بهمن",
-    "اسفند",
-]
+class CurrentUser:
+    def __init__(self, userId: int, roles: list[str]):
+        self.userId = userId
+        self.roles = roles
 
-def to_jalali_str(dt, include_time: bool = False) -> str:
-    # Convert Gregorian datetime to Jalali datetime
-    jdate = jdatetime.datetime.fromgregorian(datetime=dt)
-
-    # Build date part in Persian format
-    date_part = f"{jdate.day} {PERSIAN_MONTHS[jdate.month - 1]} {jdate.year}"
-
-    # Optionally append time
-    if include_time:
-        return f"{date_part} {jdate.strftime('%H:%M')}"
-
-    return date_part
+    def hasRole(self, role: str) -> bool:
+        return role in self.roles
 
 
 # class SMSService:

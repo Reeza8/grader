@@ -1,10 +1,10 @@
 from sqlalchemy import select
 from User.models import User
 from passlib.context import CryptContext
+from utils.utils import pwd_context
 
 
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 class EditPasswordUseCase:
     def __init__(self, session):

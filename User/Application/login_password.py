@@ -1,12 +1,13 @@
 from sqlalchemy import select
-from User.models import User
+from datetime import datetime
+from User.models import User, UserRole, Role
 from utils.utils import is_valid_email, is_valid_phone
+from utils.utils import pwd_context
 
 
 class LoginPasswordUseCase:
-    def __init__(self, session, pwdContext, tokenService):
+    def __init__(self, session, tokenService):
         self.session = session
-        self.pwdContext = pwdContext
         self.tokenService = tokenService
 
     async def execute(self, index: str, rawPassword: str):
@@ -34,16 +35,35 @@ class LoginPasswordUseCase:
         if not user.password_hash:
             raise ValueError("PASSWORD_NOT_SET")
 
-        if not self.pwdContext.verify(rawPassword, user.password_hash):
+        if not pwd_context.verify(rawPassword, user.password_hash):
             raise ValueError("INVALID_PASSWORD")
 
-        token = self.tokenService(
-            user.id,
-            user.name,
-            user.role.value
+        rolesQuery = (
+            select(Role.name)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(
+                UserRole.user_id == user.id,
+                (UserRole.expire_at.is_(None)) | (UserRole.expire_at > datetime.utcnow())
+            )
+        )
+        rolesResult = await self.session.execute(rolesQuery)
+        roles = [row[0] for row in rolesResult.all()]
+
+        # if not roles:
+        #     raise ValueError("NO_ACTIVE_ROLE")
+
+        accessToken = self.tokenService["access"](
+            user_id=user.id,
+            name=user.name,
+            roles=roles,
+        )
+
+        refreshToken = self.tokenService["refresh"](
+            user_id=user.id
         )
 
         return {
-            "token": token,
-            "index": index
+            "access_token": accessToken,
+            "refresh_token": refreshToken,
+            "index": index,
         }
